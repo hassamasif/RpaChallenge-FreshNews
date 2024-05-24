@@ -2,6 +2,7 @@ from robocorp.tasks import task
 import re
 import requests
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from RPA.Browser.Selenium import Selenium
 from RPA.Excel.Files import Files
 from RPA.Robocorp.WorkItems import WorkItems
@@ -12,6 +13,8 @@ import os
 import json
 import urllib.request
 import shutil
+
+from RPA.Robocorp.Process import Process
 # Initialize libraries
 browser = Selenium()
 excel = Files()
@@ -44,41 +47,55 @@ def load_work_item():
     
     with open('input_work_item.json', 'r') as file:
         input_data = json.load(file)
-    workitems = WorkItems()
-    workitems.set_work_item_payload(payload=input_data['payload'])
-    work_items.create_output_work_item(variables=input_data["payload"],save=True)
+    # workitems = WorkItems()
+    # process = Process()
+    # process.set_credentials(workspace_id='5687328e-4d97-41e0-8a14-12910db66189',process_id='1d7f223e-29c7-4c6e-bf39-808c62921657',apikey='Hassam Asif, Write work items')
+    # process.create_input_work_item(payload=input_data['payload'])
+
+    # workitems.set_work_item_payload(payload=input_data['payload'])
+    # work_items.create_output_work_item(variables=input_data["payload"],save=True)
     
     
-    work_items.set_work_item_payload(payload=input_data)
-    workitems.save()
-    workitems = workitems.get_input_work_item()
-    workitems.create_output(payload=input_data["payload"])
+    # work_items.set_work_item_payload(payload=input_data)
+    # workitems.save()
+    # workitems = workitems.get_input_work_item()
+    # workitems.create_output(payload=input_data["payload"])
     
-    workitems.load()
-    work_item = workitems.get_input_work_item()
-    search_phrase = work_item["payload"]["search_phrase"]
-    months = work_item["payload"]["months"]
-    news_category = work_item["payload"]["news_category"]
+    # workitems.load()
+    # work_item = workitems.get_input_work_item()
+    search_phrase = input_data["payload"]["search_phrase"]
+    months = input_data["payload"]["months"]
+    news_category = input_data["payload"]["news_category"]
     
     return search_phrase, news_category, months
 
 def open_browser_and_search_news(search_phrase):
     browser.open_available_browser("https://www.latimes.com/")
     browser.maximize_browser_window()
+    browser.wait_until_element_is_visible("xpath://button[@data-element='search-button']",timeout=40)
     browser.click_element_when_visible("xpath://button[@data-element='search-button']")
     browser.input_text_when_element_is_visible('xpath://input[@data-element="search-form-input"]', search_phrase)
     browser.click_element_when_visible('xpath://button[@data-element="search-submit-button"]')
     
-    
-def extract_news_data(search_phrase, months):
-    articles = browser.get_webelements('xpath://ul[@class="search-results-module-results-menu"]//li')
-    news_data = []
-
+def extract_page_data(articles,search_phrase,news_data,months):
     for index,article in enumerate(articles): 
         article_xpath='xpath:(//ul[@class="search-results-module-results-menu"]//li'
         title = browser.get_text('{}//h3)[{}]'.format(article_xpath,index+1))
         print(title)
         date = browser.get_text('{}//p[@class="promo-timestamp"])[{}]'.format(article_xpath,index+1))
+        # Check date range
+        try:
+            try:
+                article_date = datetime.strptime(date, "%b %d, %Y")
+            except:
+                article_date = datetime.strptime(date, "%b. %d, %Y")
+            cutoff_date = datetime.now() - relativedelta(months=months)
+            if article_date < cutoff_date:
+                return "Break"
+        except Exception as e:
+            print(e)
+            pass
+        
         description = browser.get_text('{}//p[@class="promo-description"])[{}]'.format(article_xpath,index+1))
         image_filename= ''
         try:
@@ -93,19 +110,46 @@ def extract_news_data(search_phrase, months):
         except Exception:
             image_filename= "No image"
 
-        # # Check date range
-        # article_date = datetime.strptime(date, "%b. %d, %Y")
-        # if article_date < datetime.now() - timedelta(days=months * 30):
-        #     continue
-
-
-
+        
         # Analyze text
         search_count = search_phrase_count(title,description, search_phrase)
         contains_money_flag = contains_money(description)
 
         news_entry = [title, date, description, image_filename, search_count, contains_money_flag]
         news_data.append(news_entry)
+def run_keyword_and_return_status(keyword, *args):
+    try:
+        result = keyword(*args)
+        return True, result
+    except Exception as e:
+        print(f"Keyword failed: {e}")
+        return False, None
+def select_news_category(news_category):
+    # Check If Category is mentioned
+    if news_category is not None:
+        # Find News Category on Page
+        browser.click_element_when_visible('//span[@class="see-all-text"]')
+        try:
+            browser.click_button_when_visible('(//ul[@class="search-filter-menu"])[1]//span[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"),"{}")]/../input'.format(news_category.lower()))
+        except Exception as e:
+            print("The Search Phrase category not found on page")
+    
+def extract_news_data(search_phrase=None,news_category=None, months=0):
+    browser.wait_until_element_is_visible('xpath:(//ul[@class="search-results-module-results-menu"]//li)[1]',timeout=20)
+    articles = browser.get_webelements('xpath://ul[@class="search-results-module-results-menu"]//li')
+    news_data = []
+    pages = None
+    page_num= int(browser.get_text('xpath://div[@class="search-results-module-page-counts"]').split(' ')[-1])
+    # Selecting the latest News
+    browser.select_from_list_by_label('xpath://select[@class="select-input"]', 'Newest')
+    run_keyword_and_return_status(select_news_category,news_category)
+    for i in range(1,page_num):
+        status,result= run_keyword_and_return_status(extract_page_data,articles,search_phrase,news_data,months)
+        if result == 'Break':
+            break
+        # Clicking on Next page
+        browser.scroll_element_into_view('xpath://div[@class="search-results-module-next-page"]/a')
+        browser.click_element('xpath://div[@class="search-results-module-next-page"]/a')
     
     return news_data
 
@@ -177,7 +221,7 @@ def main():
     #process_work_items()
     search_phrase, news_category, months = load_work_item()
     open_browser_and_search_news(search_phrase)
-    news_data = extract_news_data(search_phrase, months)
+    news_data = extract_news_data(search_phrase,news_category, months)
     save_news_data_to_excel(news_data)
     # browser.close_browser()
 
