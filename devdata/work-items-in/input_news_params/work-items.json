@@ -1,12 +1,12 @@
 [
   {
     "payload": {
-      "search_phrase": "bitcoin",
-      "months": 3,
+      "search_phrase": "covid",
+      "months": 0,
       "news_category": "business"
     },
       "files": {
-          "orders.xlsx": "orders.xlsx"
+          
       }
   }
 ]

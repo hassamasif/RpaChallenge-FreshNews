@@ -13,6 +13,7 @@ import os
 import json
 import urllib.request
 import shutil
+import time
 
 from RPA.Robocorp.Process import Process
 # Initialize libraries
@@ -45,17 +46,14 @@ def contains_money(text):
 
 def load_work_item():
     
-    with open('input_work_item.json', 'r') as file:
-        input_data = json.load(file)
-    # workitems = WorkItems()
-    # process = Process()
-    # process.set_credentials(workspace_id='5687328e-4d97-41e0-8a14-12910db66189',process_id='1d7f223e-29c7-4c6e-bf39-808c62921657',apikey='Hassam Asif, Write work items')
-    # process.create_input_work_item(payload=input_data['payload'])
-
+    # with open('input_work_item.json', 'r') as file:
+    #     input_data = json.load(file)
+    
     # workitems.set_work_item_payload(payload=input_data['payload'])
     # work_items.create_output_work_item(variables=input_data["payload"],save=True)
     
-    
+    input_data = work_items.get_input_work_item()
+    print("Work Items Loaded Successfully")
     # work_items.set_work_item_payload(payload=input_data)
     # workitems.save()
     # workitems = workitems.get_input_work_item()
@@ -63,9 +61,10 @@ def load_work_item():
     
     # workitems.load()
     # work_item = workitems.get_input_work_item()
-    search_phrase = input_data["payload"]["search_phrase"]
-    months = input_data["payload"]["months"]
-    news_category = input_data["payload"]["news_category"]
+
+    search_phrase = input_data.payload["search_phrase"]
+    months = input_data.payload["months"]
+    news_category = input_data.payload["news_category"]
     
     return search_phrase, news_category, months
 
@@ -76,10 +75,32 @@ def open_browser_and_search_news(search_phrase):
     browser.click_element_when_visible("xpath://button[@data-element='search-button']")
     browser.input_text_when_element_is_visible('xpath://input[@data-element="search-form-input"]', search_phrase)
     browser.click_element_when_visible('xpath://button[@data-element="search-submit-button"]')
+
+def should_process_article(date, months):
+    try:
+        try:
+            article_date = datetime.strptime(date, "%b %d, %Y")
+        except ValueError:
+            article_date = datetime.strptime(date, "%b. %d, %Y")
+        
+        # Calculate the start of the period to include articles
+        if months > 0:
+            cutoff_date = (datetime.now() - relativedelta(months=months-1)).replace(day=1)
+        else:
+            cutoff_date = datetime.now().replace(day=1)
+        
+        if article_date < cutoff_date:
+            return "Break"
+    except Exception as e:
+        print(e)
+        pass
+
+    return "Continue"
     
 def extract_page_data(articles,search_phrase,news_data,months):
     for index,article in enumerate(articles): 
         article_xpath='xpath:(//ul[@class="search-results-module-results-menu"]//li'
+        browser.wait_until_element_is_visible('{}//h3)[{}]'.format(article_xpath,index+1))
         title = browser.get_text('{}//h3)[{}]'.format(article_xpath,index+1))
         print(title)
         date = browser.get_text('{}//p[@class="promo-timestamp"])[{}]'.format(article_xpath,index+1))
@@ -87,14 +108,21 @@ def extract_page_data(articles,search_phrase,news_data,months):
         try:
             try:
                 article_date = datetime.strptime(date, "%b %d, %Y")
-            except:
+            except ValueError:
                 article_date = datetime.strptime(date, "%b. %d, %Y")
-            cutoff_date = datetime.now() - relativedelta(months=months)
+            
+            # Calculate the start of the period to include articles
+            if months > 0:
+                cutoff_date = (datetime.now() - relativedelta(months=months-1)).replace(day=1)
+            else:
+                cutoff_date = datetime.now().replace(day=1)
+            
             if article_date < cutoff_date:
                 return "Break"
         except Exception as e:
             print(e)
             pass
+
         
         description = browser.get_text('{}//p[@class="promo-description"])[{}]'.format(article_xpath,index+1))
         image_filename= ''
@@ -136,10 +164,14 @@ def select_news_category(news_category):
     
 def extract_news_data(search_phrase=None,news_category=None, months=0):
     browser.wait_until_element_is_visible('xpath:(//ul[@class="search-results-module-results-menu"]//li)[1]',timeout=20)
+    time.sleep(10)
     articles = browser.get_webelements('xpath://ul[@class="search-results-module-results-menu"]//li')
     news_data = []
     pages = None
-    page_num= int(browser.get_text('xpath://div[@class="search-results-module-page-counts"]').split(' ')[-1])
+    try:
+        page_num= int(str(browser.get_text('xpath://div[@class="search-results-module-page-counts"]').split(' ')[-1]).replace(',',''))
+    except:
+        print('Invalid Page number')
     # Selecting the latest News
     browser.select_from_list_by_label('xpath://select[@class="select-input"]', 'Newest')
     run_keyword_and_return_status(select_news_category,news_category)
@@ -147,9 +179,11 @@ def extract_news_data(search_phrase=None,news_category=None, months=0):
         status,result= run_keyword_and_return_status(extract_page_data,articles,search_phrase,news_data,months)
         if result == 'Break':
             break
-        # Clicking on Next page
-        browser.scroll_element_into_view('xpath://div[@class="search-results-module-next-page"]/a')
-        browser.click_element('xpath://div[@class="search-results-module-next-page"]/a')
+        #Clicking on Next page
+        #browser.scroll_element_into_view('xpath://div[@class="search-results-module-next-page"]/a')
+        next_page_link= browser.get_element_attribute('xpath://div[@class="search-results-module-next-page"]/a' , 'href')
+        browser.go_to(next_page_link)
+        
     
     return news_data
 
