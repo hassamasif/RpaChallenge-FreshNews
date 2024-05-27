@@ -1,8 +1,8 @@
 [
   {
     "payload": {
-      "search_phrase": "covid",
-      "months": 0,
+      "search_phrase": "bitcoin",
+      "months": 5,
       "news_category": "business"
     },
       "files": {

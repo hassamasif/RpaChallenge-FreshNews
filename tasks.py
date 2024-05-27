@@ -54,17 +54,17 @@ def load_work_item():
     
     input_data = work_items.get_input_work_item()
     print("Work Items Loaded Successfully")
-    # work_items.set_work_item_payload(payload=input_data)
-    # workitems.save()
-    # workitems = workitems.get_input_work_item()
-    # workitems.create_output(payload=input_data["payload"])
-    
-    # workitems.load()
-    # work_item = workitems.get_input_work_item()
-    print(input_data.payload)
-    search_phrase = input_data.payload['payload']["search_phrase"]
-    months = input_data.payload['payload']["months"]
-    news_category = input_data.payload['payload']["news_category"]
+   
+    try:
+        # IF Running on Control room Cloud
+        search_phrase = input_data.payload['payload']["search_phrase"]
+        months = input_data.payload['payload']["months"]
+        news_category = input_data.payload['payload']["news_category"]
+    except:
+        # IF Running on Local Environment
+        search_phrase = input_data.payload["search_phrase"]
+        months = input_data.payload["months"]
+        news_category = input_data.payload["news_category"]
     
     return search_phrase, news_category, months
 
@@ -99,8 +99,10 @@ def should_process_article(date, months):
     
 def extract_page_data(articles,search_phrase,news_data,months):
     for index,article in enumerate(articles): 
+        
         article_xpath='xpath:(//ul[@class="search-results-module-results-menu"]//li'
-        browser.wait_until_element_is_visible('{}//h3)[{}]'.format(article_xpath,index+1))
+        browser.wait_until_element_is_enabled('{}//h3)[{}]'.format(article_xpath,index+1))
+        time.sleep(2)
         title = browser.get_text('{}//h3)[{}]'.format(article_xpath,index+1))
         print(title)
         date = browser.get_text('{}//p[@class="promo-timestamp"])[{}]'.format(article_xpath,index+1))
@@ -137,7 +139,7 @@ def extract_page_data(articles,search_phrase,news_data,months):
             download_image(image_url, image_filename)
         except Exception:
             image_filename= "No image"
-
+        
         
         # Analyze text
         search_count = search_phrase_count(title,description, search_phrase)
