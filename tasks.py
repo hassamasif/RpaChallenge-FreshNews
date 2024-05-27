@@ -24,7 +24,7 @@ work_items = WorkItems()
 # Define the file paths for input and output work items
 input_file_path = 'input_work_item.json'
 output_file_path = 'output_work_item.json'
-output_img_path = './output/news_images/'
+output_img_path = './output/'
 def download_image(url, filename):
     try:
         urllib.request.urlretrieve(url, filename)
