@@ -46,12 +46,6 @@ def contains_money(text):
 
 def load_work_item():
     
-    # with open('input_work_item.json', 'r') as file:
-    #     input_data = json.load(file)
-    
-    # workitems.set_work_item_payload(payload=input_data['payload'])
-    # work_items.create_output_work_item(variables=input_data["payload"],save=True)
-    
     input_data = work_items.get_input_work_item()
     print("Work Items Loaded Successfully")
    
@@ -92,7 +86,6 @@ def should_process_article(date, months):
         if article_date < cutoff_date:
             return "Break"
     except Exception as e:
-        print(e)
         pass
 
     return "Continue"
@@ -166,7 +159,6 @@ def select_news_category(news_category):
     
 def extract_news_data(search_phrase=None,news_category=None, months=0):
     browser.wait_until_element_is_visible('xpath:(//ul[@class="search-results-module-results-menu"]//li)[1]',timeout=20)
-    time.sleep(10)
     articles = browser.get_webelements('xpath://ul[@class="search-results-module-results-menu"]//li')
     news_data = []
     pages = None
@@ -206,51 +198,7 @@ def load_payload_from_json(file_path):
         data = json.load(file)
     return data["payload"]
 
-def process_user_input():
-    # Assuming the input work item contains a payload with keys: search_phrase, months, news_category
-    item = workitems.inputs.current
-    search_phrase = item.payload.get("search_phrase")
-    months = item.payload.get("months")
-    news_category = item.payload.get("news_category")
-    
-    # Process the input here (e.g., perform a search operation based on the inputs)
-    # This is a placeholder for the actual processing logic
-    print(f"Processing: {search_phrase}, {months}, {news_category}")
-    
-    # Create an output work item with the results of the processing
-    # For demonstration, we're just echoing the input
-    results_payload = {
-        "search_phrase": search_phrase,
-        "months": months,
-        "news_category": news_category,
-        "results": "Sample results based on the input parameters"
-    }
-    workitems.outputs.create(payload=results_payload)
-def process_work_items():
-    # Load input work item from file
-    with open(input_file_path, 'r') as f:
-        input_data = json.load(f)
-    # Create a new input work item from the loaded JSON payload
-    workitems.create_input_work_item(payload=input_data["payload"])
-    work_items.create_output_work_item(variables=input_data["payload"],save=True)
-    #workitems.create_output_work_item(variables=input_data["payload"], save=True)
-    work_items.get_input_work_item()
-    # Get the payload from the work item
-    payload = workitems.get_work_item_payload()
-    # Set the input work item payload
-    work_items.set_work_item_payload(input_data)
-    item = workitems.inputs.current
-    search_phrase = item.payload.get("search_phrase")
-    months = item.payload.get("month")
-    news_category = item.payload.get("news_category")
-    
-    payload = item.payload
-    # Extract data from the payload
-    search_phrase = payload['search_phrase']
-    month = payload['month']
-    news_category = payload['news_category']
-    
-    print(f"Search Phrase: {search_phrase}, Month: {month}, News Category: {news_category}")
+
 
 @task
 def main():
