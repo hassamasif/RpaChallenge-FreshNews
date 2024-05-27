@@ -115,7 +115,6 @@ def extract_page_data(articles,search_phrase,news_data,months):
             if article_date < cutoff_date:
                 return "Break"
         except Exception as e:
-            print(e)
             pass
 
         
