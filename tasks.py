@@ -61,7 +61,7 @@ def load_work_item():
     
     # workitems.load()
     # work_item = workitems.get_input_work_item()
-    print(input_data)
+    print(input_data.payload)
     search_phrase = input_data.payload["search_phrase"]
     months = input_data.payload["months"]
     news_category = input_data.payload["news_category"]
