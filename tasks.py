@@ -1,3 +1,5 @@
+import logging
+from logging.handlers import RotatingFileHandler
 from robocorp.tasks import task
 import re
 from datetime import datetime
@@ -10,6 +12,21 @@ import json
 import urllib.request
 import time
 
+# Configure logging
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+log_file = './output/news_scraper.log'
+
+file_handler = RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=2)
+file_handler.setFormatter(log_formatter)
+file_handler.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_formatter)
+console_handler.setLevel(logging.INFO)
+
+logging.basicConfig(level=logging.INFO, handlers=[file_handler, console_handler])
+# Suppress urllib3 warnings
+logging.getLogger('urllib3').setLevel(logging.ERROR)
 
 class NewsScraper:
     """
@@ -20,6 +37,7 @@ class NewsScraper:
         """
         Initialize the NewsScraper with required libraries and file paths.
         """
+        logging.info("Initializing NewsScraper")
         self.browser = Selenium()
         self.excel = Files()
         self.work_items = WorkItems()
@@ -36,9 +54,10 @@ class NewsScraper:
             filename (str): The local filename to save the image as.
         """
         try:
+            logging.info(f"Downloading image from {url}")
             urllib.request.urlretrieve(url, filename)
         except Exception as e:
-            print(f"An error occurred while downloading the image: {e}")
+            logging.error(f"An error occurred while downloading the image: {e}")
 
     def search_phrase_count(self, title, description, phrase):
         """
@@ -54,6 +73,7 @@ class NewsScraper:
         """
         count_title = title.lower().count(phrase.lower())
         count_description = description.lower().count(phrase.lower())
+        logging.info(f"Found {count_title} occurrences in title and {count_description} in description for phrase '{phrase}'")
         return count_title + count_description
 
     def contains_money(self, text):
@@ -69,6 +89,7 @@ class NewsScraper:
         patterns = [r'\$\d+(?:,\d{3})*(?:\.\d{2})?', r'\d+\s+dollars', r'\d+\s+USD']
         for pattern in patterns:
             if re.search(pattern, text):
+                logging.info(f"Text contains monetary value: {text}")
                 return True
         return False
 
@@ -79,8 +100,9 @@ class NewsScraper:
         Returns:
             tuple: Contains the search phrase, news category, and number of months.
         """
+        logging.info("Loading work item")
         input_data = self.work_items.get_input_work_item()
-        print("Work Items Loaded Successfully")
+        logging.info("Work Items Loaded Successfully")
 
         try:
             # If running on Control room Cloud
@@ -93,6 +115,7 @@ class NewsScraper:
             months = input_data.payload["months"]
             news_category = input_data.payload["news_category"]
 
+        logging.info(f"Loaded search phrase: {search_phrase}, news category: {news_category}, months: {months}")
         return search_phrase, news_category, months
 
     def open_browser_and_search_news(self, search_phrase):
@@ -102,6 +125,7 @@ class NewsScraper:
         Args:
             search_phrase (str): The phrase to search for.
         """
+        logging.info(f"Opening browser and searching for phrase: {search_phrase}")
         self.browser.open_available_browser("https://www.latimes.com/")
         self.browser.maximize_browser_window()
         self.browser.wait_until_element_is_visible(
@@ -123,10 +147,32 @@ class NewsScraper:
             str: "Break" if the article should not be processed, "Continue" otherwise.
         """
         try:
-            try:
-                article_date = datetime.strptime(date, "%b %d, %Y")
-            except ValueError:
-                article_date = datetime.strptime(date, "%b. %d, %Y")
+            date_formats = [
+            "%b %d, %Y",        # Apr 22, 2024
+            "%b. %d, %Y",       # Apr. 22, 2024
+            "%B %d, %Y",        # April 22, 2024
+            "%B. %d, %Y",       # April. 22, 2024
+            "%d %B %Y",         # 22 April 2024
+            "%d %b %Y",         # 22 Apr 2024
+            "%d %b. %Y",        # 22 Apr. 2024
+            "%Y-%m-%d",         # 2024-04-22
+            "%m/%d/%Y",         # 04/22/2024
+            "%d/%m/%Y",         # 22/04/2024
+            "%m-%d-%Y",         # 04-22-2024
+            "%d-%m-%Y"          # 22-04-2024
+            ]
+        
+            article_date = None
+            for fmt in date_formats:
+                try:
+                    article_date = datetime.strptime(date, fmt)
+                    break
+                except ValueError:
+                    continue
+
+            if article_date is None:
+                logging.error(f"Error processing article date: {date}")
+                return "Break"
 
             # Calculate the start of the period to include articles
             if months > 0:
@@ -135,9 +181,10 @@ class NewsScraper:
                 cutoff_date = datetime.now().replace(day=1)
 
             if article_date < cutoff_date:
+                logging.info(f"Article date {article_date} is before cutoff date {cutoff_date}, skipping article")
                 return "Break"
-        except Exception:
-            pass
+        except Exception as e:
+            logging.error(f"Error processing article date: {e}")
 
         return "Continue"
 
@@ -158,27 +205,13 @@ class NewsScraper:
             time.sleep(2)
             title = self.browser.get_text(
                 '{}//h3)[{}]'.format(article_xpath, index + 1))
-            print(title)
+            logging.info(f"Extracting article {index + 1}: {title}")
             date = self.browser.get_text(
                 '{}//p[@class="promo-timestamp"])[{}]'.format(article_xpath, index + 1))
 
             # Check date range
-            try:
-                try:
-                    article_date = datetime.strptime(date, "%b %d, %Y")
-                except ValueError:
-                    article_date = datetime.strptime(date, "%b. %d, %Y")
-
-                # Calculate the start of the period to include articles
-                if months > 0:
-                    cutoff_date = (datetime.now() - relativedelta(months=months - 1)).replace(day=1)
-                else:
-                    cutoff_date = datetime.now().replace(day=1)
-
-                if article_date < cutoff_date:
-                    return "Break"
-            except Exception:
-                pass
+            if self.should_process_article(date, months) == "Break":
+                return "Break"
 
             description = self.browser.get_text(
                 '{}//p[@class="promo-description"])[{}]'.format(article_xpath, index + 1))
@@ -194,7 +227,8 @@ class NewsScraper:
                 image_filename = self.output_img_path + f"{img_name}"
 
                 self.download_image(image_url, image_filename)
-            except Exception:
+            except Exception as e:
+                logging.error(f"Error extracting image: {e}")
                 image_filename = "No image"
 
             # Analyze text
@@ -220,7 +254,7 @@ class NewsScraper:
             result = keyword(*args)
             return True, result
         except Exception as e:
-            print(f"Keyword failed: {e}")
+            logging.error(f"Keyword failed: {e}")
             return False, None
 
     def select_news_category(self, news_category):
@@ -231,12 +265,13 @@ class NewsScraper:
             news_category (str): The category of news to filter by.
         """
         if news_category is not None:
+            logging.info(f"Selecting news category: {news_category}")
             self.browser.click_element_when_visible('//span[@class="see-all-text"]')
             try:
                 self.browser.click_button_when_visible(
                     '(//ul[@class="search-filter-menu"])[1]//span[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{}")]/../input'.format(news_category.lower()))
             except Exception as e:
-                print("The Search Phrase category not found on page")
+                logging.error("The Search Phrase category not found on page")
 
     def extract_news_data(self, search_phrase=None, news_category=None, months=0):
         """
@@ -250,20 +285,28 @@ class NewsScraper:
         Returns:
             list: A list of extracted news data entries.
         """
+        logging.info(f"Extracting news data for phrase: {search_phrase}, category: {news_category}, months: {months}")
         self.browser.wait_until_element_is_visible(
             'xpath:(//ul[@class="search-results-module-results-menu"]//li)[1]', timeout=20)
+        # Selecting the latest News
+        self.browser.select_from_list_by_label('xpath://select[@class="select-input"]', 'Newest')
+        self.run_keyword_and_return_status(self.select_news_category, news_category)
+        time.sleep(2)
         articles = self.browser.get_webelements('xpath://ul[@class="search-results-module-results-menu"]//li')
         news_data = []
         pages = None
         try:
+            self.browser.wait_until_element_is_visible(
+                'xpath://div[@class="search-results-module-page-counts"]',
+                timeout=20
+            )
             page_num = int(str(self.browser.get_text(
                 'xpath://div[@class="search-results-module-page-counts"]').split(' ')[-1]).replace(',', ''))
         except:
-            print('Invalid Page number')
+            logging.error('Invalid Page number')
 
-        # Selecting the latest News
-        self.browser.select_from_list_by_label('xpath://select[@class="select-input"]', 'Newest')
-        self.run_keyword_and_return_status(self.select_news_category, news_category)
+        
+        
         for i in range(1, page_num):
             status, result = self.run_keyword_and_return_status(
                 self.extract_page_data, articles, search_phrase, news_data, months)
@@ -283,6 +326,7 @@ class NewsScraper:
         Args:
             news_data (list): The list of news data entries to save.
         """
+        logging.info("Saving news data to Excel")
         output_file = os.path.join("output", "news_data.xlsx")
         self.excel.create_workbook(output_file)
         header = ["Title", "Date", "Description", "Image filename", "Search count", "Contains money flag"]
@@ -304,6 +348,7 @@ class NewsScraper:
         Returns:
             dict: The payload data.
         """
+        logging.info(f"Loading payload from {file_path}")
         with open(file_path, 'r') as file:
             data = json.load(file)
         return data["payload"]
@@ -312,11 +357,12 @@ class NewsScraper:
         """
         Main function to run the news scraper.
         """
+        logging.info("Starting main function")
         search_phrase, news_category, months = self.load_work_item()
         self.open_browser_and_search_news(search_phrase)
         news_data = self.extract_news_data(search_phrase, news_category, months)
         self.save_news_data_to_excel(news_data)
-        # self.browser.close_browser()
+        self.browser.close_browser()
 
 
 @task
