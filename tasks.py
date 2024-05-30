@@ -201,7 +201,7 @@ class NewsScraper:
         for index, article in enumerate(articles):
             article_xpath = 'xpath:(//ul[@class="search-results-module-results-menu"]//li'
             self.browser.wait_until_element_is_enabled(
-                '{}//h3)[{}]'.format(article_xpath, index + 1))
+                '{}//h3)[{}]'.format(article_xpath, index + 1), timeout=20)
             time.sleep(2)
             title = self.browser.get_text(
                 '{}//h3)[{}]'.format(article_xpath, index + 1))
