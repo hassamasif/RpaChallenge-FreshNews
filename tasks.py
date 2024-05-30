@@ -172,7 +172,7 @@ class NewsScraper:
 
             if article_date is None:
                 logging.error(f"Error processing article date: {date}")
-                return "Break"
+                
 
             # Calculate the start of the period to include articles
             if months > 0:
