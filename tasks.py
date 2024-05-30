@@ -73,7 +73,10 @@ class NewsScraper:
         """
         count_title = title.lower().count(phrase.lower())
         count_description = description.lower().count(phrase.lower())
-        logging.info(f"Found {count_title} occurrences in title and {count_description} in description for phrase '{phrase}'")
+        logging.info(
+            f"Found {count_title} occurrences in title and "
+            f"{count_description} in description for phrase '{phrase}'"
+        )
         return count_title + count_description
 
     def contains_money(self, text):
@@ -86,7 +89,11 @@ class NewsScraper:
         Returns:
             bool: True if the text contains monetary values, False otherwise.
         """
-        patterns = [r'\$\d+(?:,\d{3})*(?:\.\d{2})?', r'\d+\s+dollars', r'\d+\s+USD']
+        patterns = [
+            r'\$\d+(?:,\d{3})*(?:\.\d{2})?',
+            r'\d+\s+dollars',
+            r'\d+\s+USD'
+        ]
         for pattern in patterns:
             if re.search(pattern, text):
                 logging.info(f"Text contains monetary value: {text}")
@@ -115,7 +122,10 @@ class NewsScraper:
             months = input_data.payload["months"]
             news_category = input_data.payload["news_category"]
 
-        logging.info(f"Loaded search phrase: {search_phrase}, news category: {news_category}, months: {months}")
+        logging.info(
+            f"Loaded search phrase: {search_phrase}, news category: {news_category}, "
+            f"months: {months}"
+        )
         return search_phrase, news_category, months
 
     def open_browser_and_search_news(self, search_phrase):
