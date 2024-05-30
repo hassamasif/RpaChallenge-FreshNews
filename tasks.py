@@ -291,6 +291,7 @@ class NewsScraper:
         # Selecting the latest News
         self.browser.select_from_list_by_label('xpath://select[@class="select-input"]', 'Newest')
         self.run_keyword_and_return_status(self.select_news_category, news_category)
+        time.sleep(2)
         news_data = []
         pages = None
         try:
