@@ -291,8 +291,6 @@ class NewsScraper:
         # Selecting the latest News
         self.browser.select_from_list_by_label('xpath://select[@class="select-input"]', 'Newest')
         self.run_keyword_and_return_status(self.select_news_category, news_category)
-        time.sleep(2)
-        articles = self.browser.get_webelements('xpath://ul[@class="search-results-module-results-menu"]//li')
         news_data = []
         pages = None
         try:
@@ -308,6 +306,10 @@ class NewsScraper:
         
         
         for i in range(1, page_num):
+            self.browser.wait_until_element_is_visible(
+            'xpath:(//ul[@class="search-results-module-results-menu"]//li)[1]', timeout=20)
+            articles = self.browser.get_webelements('xpath://ul[@class="search-results-module-results-menu"]//li')
+        
             status, result = self.run_keyword_and_return_status(
                 self.extract_page_data, articles, search_phrase, news_data, months)
             if result == 'Break':
