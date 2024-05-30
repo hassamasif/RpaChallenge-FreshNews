@@ -56,6 +56,9 @@ This project is a web scraping tool designed to extract news articles from the L
 
 To run the scraper, execute the following command:
 
+### Logging 
+In this script, the RotatingFileHandler is used to write logs to a file named news_scraper.log. The maxBytes parameter is set to 5 MB, and backupCount is set to 2, meaning that when the log file reaches 5 MB, it will be backed up and a new log file will be created. This helps in managing log files by rotating them when they reach a certain size. The handlers parameter in logging.basicConfig includes both the file handler and the console handler to ensure logs are output to both the console and the log file.
+
 
 ```sh
 C:; cd 'path\to\your\project'; & 'path\to\your\run_env.bat' 'path\to\your\rcc.exe' 'task' 'run' '--robot' 'path\to\your\robot.yaml' '--space' 'vscode-03' '--task' 'Run Task' '--controller' 'RobocorpCode'
